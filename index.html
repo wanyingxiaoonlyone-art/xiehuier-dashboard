@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>歇会儿数据看板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: '#eff6ff',
+                100: '#dbeafe',
+                500: '#2563eb',
+                600: '#1d4ed8',
+                700: '#1e40af'
+              },
+              ink: '#1f2937'
+            },
+            boxShadow: {
+              soft: '0 24px 80px rgba(15, 23, 42, 0.08)',
+              float: '0 18px 50px rgba(37, 99, 235, 0.16)'
+            }
+          }
+        }
+      };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="bg-slate-50 text-ink antialiased">
+    <div class="pointer-events-none fixed inset-0 overflow-hidden">
+      <div class="absolute left-[-8rem] top-[-8rem] h-72 w-72 rounded-full bg-brand-100 blur-3xl"></div>
+      <div class="absolute bottom-0 right-[-10rem] h-80 w-80 rounded-full bg-sky-100 blur-3xl"></div>
+    </div>
+
+    <main class="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <section class="hero-card mb-8 overflow-hidden rounded-[32px] border border-white/70 bg-white/90 p-6 shadow-soft backdrop-blur lg:p-8">
+        <div class="grid gap-8 lg:grid-cols-[1.35fr_0.95fr] lg:items-end">
+          <div>
+            <div class="mb-4 inline-flex items-center gap-2 rounded-full bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700">
+              <span class="material-symbols-outlined text-[18px]">monitoring</span>
+              独立数据看板网页
+            </div>
+            <h1 id="hero-title" class="max-w-3xl text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
+              歇会儿 App 数据看板
+            </h1>
+            <p class="mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
+              管理员登录后实时查询 Supabase。默认仅统计 App Store 正式渠道，测试数据需单独筛选。
+            </p>
+            <div class="mt-6 flex flex-wrap gap-3">
+              <button id="refresh-button" class="inline-flex items-center gap-2 rounded-full bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-float transition hover:-translate-y-0.5 hover:bg-brand-700">
+                <span class="material-symbols-outlined text-[18px]">refresh</span>
+                <span class="refresh-label">刷新数据</span>
+              </button>
+              <button id="logout-button" type="button" hidden class="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">退出登录</button>
+            </div>
+          </div>
+          <div class="rounded-[28px] border border-slate-100 bg-slate-50/90 p-5">
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div class="rounded-3xl bg-white p-4 shadow-sm">
+                <div class="text-sm text-slate-500">当前数据源</div>
+                <div id="source-badge" class="mt-2 text-lg font-bold text-slate-900">等待登录</div>
+              </div>
+              <div class="rounded-3xl bg-white p-4 shadow-sm">
+                <div class="text-sm text-slate-500">最近更新时间</div>
+                <div id="updated-at" class="mt-2 text-lg font-bold text-slate-900">--</div>
+              </div>
+              <div class="rounded-3xl bg-white p-4 shadow-sm">
+                <div class="text-sm text-slate-500">统计口径</div>
+                <div id="metric-note" class="mt-2 text-sm font-semibold leading-6 text-slate-700">UTC 日历；匿名安装设备数。查询失败的指标显示未知。</div>
+              </div>
+              <div class="rounded-3xl bg-white p-4 shadow-sm">
+                <div class="text-sm text-slate-500">当前查询筛选</div>
+                <div id="active-filter" class="mt-2 text-sm font-semibold leading-6 text-slate-700">全部版本</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-8 rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-soft">
+        <form id="login-form" class="login-form">
+          <h2 class="text-xl font-bold text-slate-900">管理员登录</h2>
+          <div><label for="login-email">邮箱</label><input id="login-email" name="email" type="email" autocomplete="username" required maxlength="254" /></div>
+          <div><label for="login-password">密码</label><input id="login-password" name="password" type="password" autocomplete="current-password" required /></div>
+          <button id="login-button" type="submit" disabled class="rounded-full bg-brand-600 px-5 py-3 text-sm font-semibold text-white">登录</button>
+        </form>
+        <div id="status-message" class="status-message info" role="status" aria-live="polite">正在读取公开配置…</div>
+        <noscript>请启用 JavaScript 后登录查询。</noscript>
+      </section>
+
+      <section class="mb-8 rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-soft backdrop-blur">
+        <div class="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_auto]">
+          <div>
+            <label class="mb-2 block text-sm font-semibold text-slate-600">时间范围</label>
+            <div id="range-group" class="flex flex-wrap gap-2"></div>
+          </div>
+          <div>
+            <label for="version-select" class="mb-2 block text-sm font-semibold text-slate-600">版本</label>
+            <select id="version-select" class="filter-select w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-brand-500"></select>
+          </div>
+          <div>
+            <label for="channel-select" class="mb-2 block text-sm font-semibold text-slate-600">渠道</label>
+            <select id="channel-select" class="filter-select w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-brand-500"></select>
+          </div>
+          <div>
+            <label for="platform-select" class="mb-2 block text-sm font-semibold text-slate-600">平台</label>
+            <select id="platform-select" class="filter-select w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-brand-500"></select>
+          </div>
+        </div>
+      </section>
+
+      <section id="summary-grid" class="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4"></section>
+
+      <section class="mb-8 grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+        <article class="rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-soft backdrop-blur">
+          <div class="mb-5 flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-xl font-bold text-slate-900">日活与启动趋势</h2>
+              <p class="mt-1 text-sm text-slate-500">查看最近区间的 DAU、启动次数和完成情况。</p>
+            </div>
+          </div>
+          <div id="daily-chart" class="chart-shell"></div>
+        </article>
+        <article class="rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-soft backdrop-blur">
+          <div class="mb-5">
+            <h2 class="text-xl font-bold text-slate-900">平台分布</h2>
+            <p class="mt-1 text-sm text-slate-500">按平台统计匿名安装设备数；不与渠道混合，同一设备跨平台可能重复计数。</p>
+          </div>
+          <div id="distribution-chart" class="chart-shell compact"></div>
+        </article>
+      </section>
+
+      <section class="mb-8 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <article class="rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-soft backdrop-blur">
+          <div class="mb-5">
+            <h2 class="text-xl font-bold text-slate-900">小游戏使用情况</h2>
+            <p class="mt-1 text-sm text-slate-500">重点看每个小游戏的开始次数、完成次数和完成率。</p>
+          </div>
+          <div id="game-chart" class="chart-shell"></div>
+        </article>
+        <article class="rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-soft backdrop-blur">
+          <div class="mb-5">
+            <h2 class="text-xl font-bold text-slate-900">数据说明</h2>
+            <p class="mt-1 text-sm text-slate-500">所有事件指标遵循同一组服务器筛选。</p>
+          </div>
+          <div class="space-y-4 text-sm leading-7 text-slate-600">
+            <div class="rounded-3xl bg-slate-50 p-4">
+              <div class="font-semibold text-slate-900">App Store产品销量</div>
+              <p>来自已核验商店报表的历史快照，截止日期见指标卡，非自动更新、非首次下载或首次激活。全量累计，不随日期、渠道、平台和版本事件筛选变化；未接入时显示“未接入”。</p>
+            </div>
+            <div class="rounded-3xl bg-slate-50 p-4">
+              <div class="font-semibold text-slate-900">实时查询</div>
+              <p>登录后每 60 秒查询一次；日活按 UTC 今天统计。未授权、网络失败和未知指标不会显示为 0。正式渠道为默认值，测试渠道需明确选择。</p>
+            </div>
+            <div class="rounded-3xl bg-slate-50 p-4">
+              <div class="font-semibold text-slate-900">小游戏完成率</div>
+              <p>完成次数 / 开始次数并非严格漏斗：跨期完成可能使比率超过 100%。开始次数为 0 时不计算。名称使用本地固定映射，未匹配项显示原始 key。</p>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <article class="rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-soft backdrop-blur">
+          <div class="mb-5 flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-xl font-bold text-slate-900">小游戏明细表</h2>
+              <p class="mt-1 text-sm text-slate-500">给你更直观地看每个小游戏最近区间的表现。</p>
+            </div>
+          </div>
+          <div class="overflow-x-auto rounded-3xl border border-slate-100">
+            <table class="min-w-full divide-y divide-slate-100 text-left">
+              <thead class="bg-slate-50 text-xs uppercase tracking-[0.16em] text-slate-500">
+                <tr>
+                  <th class="px-4 py-3 font-semibold">小游戏</th>
+                  <th class="px-4 py-3 font-semibold">开始次数</th>
+                  <th class="px-4 py-3 font-semibold">完成次数</th>
+                  <th class="px-4 py-3 font-semibold">完成率</th>
+                </tr>
+              </thead>
+              <tbody id="games-table" class="divide-y divide-slate-100 bg-white text-sm text-slate-700"></tbody>
+            </table>
+          </div>
+        </article>
+        <article class="rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-soft backdrop-blur">
+          <div class="mb-5">
+            <h2 class="text-xl font-bold text-slate-900">版本动态</h2>
+            <p class="mt-1 text-sm text-slate-500">不同版本与渠道最近是否在持续上报，一眼看清。</p>
+          </div>
+          <div id="releases-list" class="space-y-3"></div>
+        </article>
+      </section>
+    </main>
+
+    <template id="summary-card-template">
+      <article class="rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-soft backdrop-blur transition duration-300 hover:-translate-y-1 hover:shadow-float">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <div class="summary-label text-sm font-semibold text-slate-500"></div>
+            <div class="summary-value mt-4 text-3xl font-extrabold tracking-tight text-slate-900"></div>
+            <div class="summary-subtitle mt-3 text-sm leading-6 text-slate-500"></div>
+          </div>
+          <div class="summary-icon flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"></div>
+        </div>
+      </article>
+    </template>
+
+    <script src="./game-names.js"></script>
+    <script src="./dashboard-data.js"></script>
+    <script src="./supabase.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

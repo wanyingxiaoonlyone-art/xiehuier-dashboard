@@ -1,0 +1,6 @@
+{
+  "title": "歇会儿独立数据看板",
+  "supabaseUrl": "https://ndaruhfjwhkihczgdmie.supabase.co",
+  "supabasePublicKey": "sb_publishable_XV-hjHjEVy7OKQKT7F0hcA_Ws-sfXAd",
+  "metricNote": "行为数据由 Supabase 云端实时查询，默认仅显示 App Store 正式渠道；日活按 UTC 自然日统计匿名安装设备。商店下载量需单独接入，不能用启动或激活数代替。"
+}
